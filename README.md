@@ -49,6 +49,7 @@ pnpm dev                     # http://localhost:3000
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Maintenance scripts only. Never used by the running site |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | no | Phone notification for each contact message |
 | `RESEND_API_KEY`, `CONTACT_NOTIFY_EMAIL`, `CONTACT_FROM_EMAIL` | no | Email notification for each contact message |
+| `CRON_SECRET` | no | Any long random string. Lets only Vercel Cron call `/api/keep-alive` |
 
 `.env.local` is git-ignored. Never commit real keys.
 
@@ -86,6 +87,10 @@ pnpm dev                     # http://localhost:3000
    Set `NEXT_PUBLIC_SITE_URL` to the production domain (e.g. `https://ammarzeineh.com`).
 3. In **Supabase → Authentication → URL Configuration**, set the Site URL to the same domain.
 4. Deploy. After adding a custom domain, redeploy so the sitemap and share images use it.
+
+A daily Vercel Cron job (`vercel.json`) calls `/api/keep-alive`, which makes one tiny database read.
+Supabase pauses free projects after 7 days without activity, and cached pages don't touch the database,
+so without it a quiet week would take the contact form and admin offline.
 
 Content edits in the admin go live straight away (each save refreshes the cached pages that use it); no redeploy needed.
 
