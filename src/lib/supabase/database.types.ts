@@ -1,5 +1,5 @@
 // Mirrors the output of `supabase gen types typescript` for
-// supabase/migrations/0001_init.sql. Regenerate (or update by hand) whenever
+// supabase/migrations (0001_init.sql, 0002_settings_role.sql). Regenerate (or update by hand) whenever
 // the schema changes. jsonb columns are `Json` here and parsed with Zod in
 // src/lib/data so the rest of the app works with precise domain types.
 
@@ -89,6 +89,7 @@ type SkillRow = Timestamps & {
 
 type SiteSettingsRow = {
   id: number;
+  role: Json;
   hero_headline: Json;
   hero_sub: Json;
   about: Json;

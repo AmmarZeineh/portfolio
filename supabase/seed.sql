@@ -21,9 +21,9 @@ values (
   '{"github": "https://github.com/AmmarZeineh", "linkedin": "https://www.linkedin.com/in/ammar-zeineh"}',
   '[
     {"value": 5, "suffix": "", "label": {"en": "Apps built end to end"}},
-    {"value": 2, "suffix": "+", "label": {"en": "Years shipping Flutter"}},
-    {"value": 2, "suffix": "", "label": {"en": "Languages, LTR & RTL"}},
-    {"value": 100, "suffix": "%", "label": {"en": "Clean Architecture"}}
+    {"value": 2, "suffix": "+", "label": {"en": "Years building with Flutter"}},
+    {"value": 2, "suffix": "", "label": {"en": "Remote roles, in a team and freelance"}},
+    {"value": 1, "suffix": "", "label": {"en": "Production app delivered for a client"}}
   ]'
 )
 on conflict (id) do update set

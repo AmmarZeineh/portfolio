@@ -1,46 +1,88 @@
+import { notFound } from "next/navigation";
+import { About } from "@/components/sections/about";
+import { ContactCta } from "@/components/sections/contact-cta";
+import { ExperienceTimeline } from "@/components/sections/experience-timeline";
+import { FeaturedWork } from "@/components/sections/featured-work";
+import { Hero } from "@/components/sections/hero";
+import type { HeroScreen } from "@/components/sections/hero-device";
+import { Skills } from "@/components/sections/skills";
+import { Stats } from "@/components/sections/stats";
+import { PageTransition } from "@/components/site/page-transition";
+import { isLocale } from "@/i18n/config";
+import { localePath } from "@/i18n/format";
+import { getDictionary } from "@/i18n/get-dictionary";
 import { getExperience, getSiteSettings, getSkillGroups } from "@/lib/data/content";
 import { getProjects } from "@/lib/data/projects";
+import { pick, type ProjectSummary } from "@/lib/data/schemas";
+import { siteUrl } from "@/lib/env";
+import { jsonLd } from "@/lib/seo";
+import { mediaUrl } from "@/lib/supabase/storage";
 
-// Temporary Phase 1 page: verifies env + Supabase + seed. Replaced in Phase 3.
+/** The showcase needs some length to scroll: featured first, topped up to three. */
+const SHOWCASE_MIN = 3;
 
-type Check = { label: string; ok: boolean; detail: string };
-
-async function check(label: string, run: () => Promise<string>): Promise<Check> {
-  try {
-    return { label, ok: true, detail: await run() };
-  } catch (error) {
-    return { label, ok: false, detail: error instanceof Error ? error.message : String(error) };
-  }
+function showcaseProjects(projects: ProjectSummary[]): ProjectSummary[] {
+  const featured = projects.filter((p) => p.is_featured);
+  if (featured.length >= SHOWCASE_MIN) return featured;
+  const rest = projects.filter((p) => !p.is_featured);
+  return [...featured, ...rest.slice(0, SHOWCASE_MIN - featured.length)];
 }
 
-export default async function SetupStatusPage() {
-  const checks = await Promise.all([
-    check("Site settings", async () => (await getSiteSettings()).email ?? "no email set"),
-    check("Published projects", async () => {
-      const projects = await getProjects();
-      return `${projects.length}: ${projects.map((p) => p.title.en).join(", ")}`;
-    }),
-    check("Experience", async () => `${(await getExperience()).length} entries`),
-    check("Skill groups", async () => `${(await getSkillGroups()).length} groups`),
+export default async function HomePage({ params }: PageProps<"/[locale]">) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+
+  const [t, settings, projects, experience, skillGroups] = await Promise.all([
+    getDictionary(locale),
+    getSiteSettings(),
+    getProjects(),
+    getExperience(),
+    getSkillGroups(),
   ]);
 
+  const showcase = showcaseProjects(projects);
+  const heroScreens: HeroScreen[] = showcase.flatMap((project) =>
+    project.cover_path
+      ? [
+          {
+            slug: project.slug,
+            href: localePath(locale, `/projects/${project.slug}`),
+            title: pick(project.title, locale),
+            src: project.cover_path,
+            alt: pick(project.tagline, locale),
+            accent: project.accent_color,
+          },
+        ]
+      : [],
+  );
+
+  const base = siteUrl();
+  const person = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "@id": `${base}/#person`,
+    name: `${t.person.firstName} ${t.person.lastName}`,
+    jobTitle: pick(settings.role, locale) || t.person.role,
+    description: pick(settings.hero_sub, locale) || t.meta.description,
+    url: `${base}/${locale}`,
+    ...(settings.email && { email: `mailto:${settings.email}` }),
+    ...(settings.photo_path && { image: new URL(mediaUrl(settings.photo_path), base).href }),
+    address: { "@type": "PostalAddress", addressLocality: "Damascus", addressCountry: "SY" },
+    knowsLanguage: pick(settings.languages, locale),
+    knowsAbout: skillGroups.flatMap((group) => group.skills.map((skill) => skill.name)),
+    sameAs: Object.values(settings.socials).filter(Boolean),
+  };
+
   return (
-    <main className="mx-auto max-w-2xl px-6 py-24">
-      <p className="text-sm tracking-widest text-muted uppercase">Phase 1 · Setup check</p>
-      <h1 className="font-display mt-4 text-6xl leading-none">
-        Ammar <em className="text-accent">Zeineh</em>
-      </h1>
-      <ul className="mt-12 space-y-4">
-        {checks.map((c) => (
-          <li key={c.label} className="rounded-2xl bg-surface p-5">
-            <p className="font-medium">
-              <span aria-hidden>{c.ok ? "✓" : "✗"}</span> {c.label}
-              <span className="sr-only">{c.ok ? " passed" : " failed"}</span>
-            </p>
-            <p className={`mt-1 text-sm ${c.ok ? "text-muted" : "text-red-300"}`}>{c.detail}</p>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <PageTransition>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(person) }} />
+      <Hero t={t} locale={locale} settings={settings} screens={heroScreens} />
+      <About t={t} locale={locale} settings={settings} />
+      <FeaturedWork t={t} locale={locale} projects={showcase} totalCount={projects.length} />
+      <ExperienceTimeline t={t} locale={locale} experience={experience} />
+      <Skills t={t} locale={locale} groups={skillGroups} />
+      <Stats t={t} locale={locale} stats={settings.stats} />
+      <ContactCta t={t} locale={locale} settings={settings} />
+    </PageTransition>
   );
 }

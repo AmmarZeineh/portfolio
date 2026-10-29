@@ -1,0 +1,384 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Controller, FormProvider, useFieldArray, useForm, useFormContext, useWatch, type FieldPath } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
+import { ArrowLeftIcon, EyeIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
+import { saveProject } from "@/lib/admin/actions/projects";
+import { projectFormSchema, slugify, type ProjectFormValues } from "@/lib/admin/schemas";
+import { PLATFORMS, PROJECT_CATEGORIES } from "@/lib/data/schemas";
+import { BilingualField, Field, FormSection, ListField, MarkdownField, MoveButtons, TextField } from "./fields";
+import { FileField } from "./file-field";
+import { ImageManager } from "./image-manager";
+import { TagPicker } from "./tag-picker";
+import { Button } from "./ui/button";
+import { Checkbox } from "./ui/checkbox";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Switch } from "./ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Textarea } from "./ui/textarea";
+
+const CATEGORY_LABELS: Record<(typeof PROJECT_CATEGORIES)[number], string> = {
+  company: "Company",
+  freelance: "Freelance",
+  graduation: "Graduation project",
+  academic: "Academic",
+};
+const PLATFORM_LABELS = { android: "Android", ios: "iOS", web: "Web" } as const;
+const LINKS = [
+  ["demo", "Live demo"],
+  ["play_store", "Google Play"],
+  ["app_store", "App Store"],
+  ["github", "Source code (GitHub)"],
+  ["figma", "Figma file"],
+  ["case_study", "Full write-up"],
+] as const;
+
+type ProjectFormProps = {
+  id: string | null;
+  initial: ProjectFormValues;
+  tags: { id: string; name: string; slug: string }[];
+};
+
+/**
+ * The whole project in one form, split into tabs. Saving writes the project,
+ * its tags and its gallery together, then refreshes the public pages.
+ */
+export function ProjectForm({ id, initial, tags }: ProjectFormProps) {
+  const router = useRouter();
+  const [saving, startSaving] = useTransition();
+  const [tab, setTab] = useState("basics");
+  const form = useForm<ProjectFormValues>({
+    resolver: zodResolver(projectFormSchema),
+    defaultValues: initial,
+    mode: "onTouched",
+  });
+  const { handleSubmit, setError, reset, formState, setValue, control } = form;
+
+  // New projects: the slug follows the title until it's edited by hand.
+  const [slugTouched, setSlugTouched] = useState(Boolean(id));
+  const titleEn = useWatch({ control, name: "title.en" });
+  useEffect(() => {
+    if (!slugTouched) setValue("slug", slugify(titleEn ?? ""), { shouldValidate: false });
+  }, [titleEn, slugTouched, setValue]);
+
+  // Warn before leaving with unsaved changes.
+  useEffect(() => {
+    if (!formState.isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [formState.isDirty]);
+
+  const onSubmit = handleSubmit(
+    (values) =>
+      startSaving(async () => {
+        const result = await saveProject(id, values);
+        if (!result.ok) {
+          for (const [name, message] of Object.entries(result.fieldErrors ?? {})) {
+            setError(name as FieldPath<ProjectFormValues>, { message });
+          }
+          toast.error(result.error);
+          return;
+        }
+        toast.success(id ? "Project saved" : "Project created");
+        reset(values);
+        if (!id) router.replace(`/admin/projects/${result.data.id}`);
+        else router.refresh();
+      }),
+    (errors) => {
+      // Jump to the tab that holds the first error.
+      const first = Object.keys(errors)[0] ?? "";
+      const tabFor: Record<string, string> = {
+        overview: "story", problem: "story", solution: "story", architecture: "story", results: "story",
+        features: "story", challenges: "story", images: "media", video_url: "media", links: "links",
+      };
+      setTab(tabFor[first] ?? "basics");
+      toast.error("Some fields need attention.");
+    },
+  );
+
+  const published = useWatch({ control, name: "is_published" });
+  const slug = useWatch({ control, name: "slug" });
+
+  return (
+    <FormProvider {...form}>
+      <form onSubmit={onSubmit} noValidate className="space-y-6">
+        <div className="sticky top-[6.5rem] z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/90 px-4 py-3 backdrop-blur md:top-0 md:-mx-10 md:px-10">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button asChild variant="ghost" size="icon-sm">
+              <Link href="/admin/projects" aria-label="Back to projects">
+                <ArrowLeftIcon />
+              </Link>
+            </Button>
+            <h1 className="truncate text-lg font-semibold">{titleEn || "New project"}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <Controller
+                control={control}
+                name="is_published"
+                render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+              />
+              {published ? "Published" : "Draft"}
+            </label>
+            {id && (
+              <Button asChild variant="outline" size="sm">
+                <a href={`/en/preview/${id}`} target="_blank" rel="noopener">
+                  <EyeIcon /> Preview
+                </a>
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving && <Loader2Icon className="animate-spin" />}
+              {saving ? "Saving…" : formState.isDirty || !id ? "Save" : "Saved"}
+            </Button>
+          </div>
+        </div>
+        {id && formState.isDirty && (
+          <p className="text-xs text-muted-foreground">Unsaved changes. Preview shows the last saved version.</p>
+        )}
+
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="basics">Basics</TabsTrigger>
+            <TabsTrigger value="story">Story</TabsTrigger>
+            <TabsTrigger value="media">Screens & video</TabsTrigger>
+            <TabsTrigger value="links">Links & tags</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="basics" className="mt-6 space-y-6" forceMount hidden={tab !== "basics"}>
+            <FormSection title="Identity">
+              <BilingualField<ProjectFormValues> name="title" label="Title" />
+              <Field
+                id="field-slug"
+                label="URL"
+                hint={`/projects/${slug || "…"}. Changing it breaks links people already have.`}
+                error={formState.errors.slug?.message}
+              >
+                <Input
+                  id="field-slug"
+                  {...form.register("slug", { onChange: () => setSlugTouched(true) })}
+                  aria-invalid={formState.errors.slug ? true : undefined}
+                />
+              </Field>
+              <BilingualField<ProjectFormValues> name="tagline" label="Tagline" hint="One sentence. Shown on cards and as the page description." />
+              <BilingualField<ProjectFormValues> name="role" label="Your role" />
+            </FormSection>
+
+            <FormSection title="Details">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <SelectField name="category" label="Type" options={PROJECT_CATEGORIES.map((c) => [c, CATEGORY_LABELS[c]])} />
+                <SelectField name="status" label="Status" options={[["completed", "Completed"], ["in_progress", "In progress"]]} />
+                <TextField<ProjectFormValues> name="start_date" label="Start date" type="date" hint="Optional. Shown as the year." />
+                <TextField<ProjectFormValues> name="end_date" label="End date" type="date" />
+                <TextField<ProjectFormValues> name="team_size" label="Team size" type="number" hint="Leave empty to hide. 1 shows as Solo." />
+                <ColorField />
+              </div>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Platforms</legend>
+                <Controller
+                  control={control}
+                  name="platforms"
+                  render={({ field }) => (
+                    <div className="flex flex-wrap gap-4">
+                      {PLATFORMS.map((platform) => (
+                        <label key={platform} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={field.value?.includes(platform)}
+                            onCheckedChange={(checked) =>
+                              field.onChange(
+                                checked
+                                  ? [...(field.value ?? []), platform]
+                                  : (field.value ?? []).filter((p) => p !== platform),
+                              )
+                            }
+                          />
+                          {PLATFORM_LABELS[platform]}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                />
+              </fieldset>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SwitchField name="is_featured" label="Featured" hint="Leads the home page showcase." />
+                <SwitchField name="is_confidential" label="Under NDA" hint="Adds a note that some details are left out." />
+              </div>
+            </FormSection>
+          </TabsContent>
+
+          <TabsContent value="story" className="mt-6 space-y-6" forceMount hidden={tab !== "story"}>
+            <FormSection title="Case study" description="Each section appears on the project page only when it has text.">
+              <MarkdownField<ProjectFormValues> name="overview" label="Overview" />
+              <MarkdownField<ProjectFormValues> name="problem" label="The problem" />
+              <MarkdownField<ProjectFormValues> name="solution" label="The approach" />
+              <MarkdownField<ProjectFormValues> name="architecture" label="Architecture" />
+              <MarkdownField<ProjectFormValues> name="results" label="Outcome" />
+            </FormSection>
+            <FormSection title="What it does">
+              <div className="grid gap-6 md:grid-cols-2">
+                <ListField<ProjectFormValues> name="features.en" label="Features (English)" addLabel="Add feature" />
+                <ListField<ProjectFormValues> name="features.ar" label="Features (Arabic)" addLabel="Add feature" dir="rtl" />
+              </div>
+            </FormSection>
+            <FormSection title="Challenges" description="A short title and how you solved it.">
+              <ChallengesField lang="en" />
+              <ChallengesField lang="ar" />
+            </FormSection>
+          </TabsContent>
+
+          <TabsContent value="media" className="mt-6 space-y-6" forceMount hidden={tab !== "media"}>
+            <FormSection title="Screens" description="The starred image is the cover used on cards and at the top of the case study.">
+              <ImageManager folder={`projects/${id ?? "new"}`} />
+            </FormSection>
+            <FormSection title="Walkthrough video" description="Upload a screen recording (plays inside a phone), or paste a YouTube or Vimeo link.">
+              <Controller
+                control={control}
+                name="video_path"
+                render={({ field }) => (
+                  <FileField
+                    label="Video file"
+                    hint="MP4 or WebM, up to 50 MB."
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                    accept="video/mp4,video/webm"
+                    bucket="media"
+                    folder={`projects/${id ?? "new"}/video`}
+                    kind="file"
+                  />
+                )}
+              />
+              <TextField<ProjectFormValues> name="video_url" label="Or a video link" type="url" placeholder="https://youtu.be/…" />
+            </FormSection>
+          </TabsContent>
+
+          <TabsContent value="links" className="mt-6 space-y-6" forceMount hidden={tab !== "links"}>
+            <FormSection title="Links" description="Only filled-in links are shown, as buttons at the top of the case study.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                {LINKS.map(([key, label]) => (
+                  <TextField<ProjectFormValues> key={key} name={`links.${key}`} label={label} type="url" placeholder="https://" />
+                ))}
+              </div>
+            </FormSection>
+            <FormSection title="Tags" description="Used for the technology filter on the projects page.">
+              <Controller
+                control={control}
+                name="tag_ids"
+                render={({ field }) => <TagPicker allTags={tags} value={field.value ?? []} onChange={field.onChange} />}
+              />
+            </FormSection>
+          </TabsContent>
+        </Tabs>
+      </form>
+    </FormProvider>
+  );
+}
+
+function SelectField({
+  name,
+  label,
+  options,
+}: {
+  name: "category" | "status";
+  label: string;
+  options: (readonly [string, string])[];
+}) {
+  const { control } = useFormContext<ProjectFormValues>();
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <div className="space-y-2">
+          <Label htmlFor={`field-${name}`}>{label}</Label>
+          <Select value={field.value} onValueChange={field.onChange}>
+            <SelectTrigger id={`field-${name}`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map(([value, text]) => (
+                <SelectItem key={value} value={value}>
+                  {text}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    />
+  );
+}
+
+function SwitchField({ name, label, hint }: { name: "is_featured" | "is_confidential"; label: string; hint: string }) {
+  const { control } = useFormContext<ProjectFormValues>();
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <label className="flex items-start justify-between gap-4 rounded-lg border p-3">
+          <span>
+            <span className="block text-sm font-medium">{label}</span>
+            <span className="block text-xs text-muted-foreground">{hint}</span>
+          </span>
+          <Switch checked={field.value} onCheckedChange={field.onChange} />
+        </label>
+      )}
+    />
+  );
+}
+
+function ColorField() {
+  const { register, control, setValue, formState } = useFormContext<ProjectFormValues>();
+  const color = useWatch({ control, name: "accent_color" });
+  return (
+    <Field id="field-accent_color" label="Accent color" hint="Tints the project's glow and its case study." error={formState.errors.accent_color?.message}>
+      <div className="flex gap-2">
+        <input
+          type="color"
+          value={/^#[0-9a-f]{6}$/i.test(color ?? "") ? color : "#7fb2ff"}
+          onChange={(e) => setValue("accent_color", e.target.value.toUpperCase(), { shouldDirty: true, shouldValidate: true })}
+          className="h-9 w-12 cursor-pointer rounded-md border bg-transparent p-1"
+          aria-label="Pick accent color"
+        />
+        <Input id="field-accent_color" {...register("accent_color")} />
+      </div>
+    </Field>
+  );
+}
+
+function ChallengesField({ lang }: { lang: "en" | "ar" }) {
+  const { control, register } = useFormContext<ProjectFormValues>();
+  const { fields, append, remove, move } = useFieldArray({ control, name: `challenges.${lang}` });
+  const dir = lang === "ar" ? "rtl" : undefined;
+  const language = lang === "en" ? "English" : "Arabic";
+
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-medium">{language}</legend>
+      {fields.map((field, i) => (
+        <div key={field.id} className="flex gap-2 rounded-lg border p-3">
+          <div className="flex-1 space-y-2">
+            <Input dir={dir} placeholder="Title" aria-label={`Challenge ${i + 1} title, ${language}`} {...register(`challenges.${lang}.${i}.title`)} />
+            <Textarea dir={dir} rows={3} placeholder="How you solved it" aria-label={`Challenge ${i + 1} details, ${language}`} {...register(`challenges.${lang}.${i}.body`)} />
+          </div>
+          <div className="flex flex-col">
+            <MoveButtons index={i} count={fields.length} onMove={move} label="Challenge" />
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => remove(i)} aria-label={`Remove challenge ${i + 1}`}>
+              <XIcon />
+            </Button>
+          </div>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" onClick={() => append({ title: "", body: "" })}>
+        <PlusIcon /> Add challenge
+      </Button>
+    </fieldset>
+  );
+}

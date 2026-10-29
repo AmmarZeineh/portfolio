@@ -1,25 +1,430 @@
 @import "tailwindcss";
 
-/* Phase 1 baseline. Full Nocturne design tokens arrive in Phase 2. */
-:root {
+/* Dark mode is toggled with [data-theme] on <html> (next-themes). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* =============================================================================
+   Nocturne tokens
+   ============================================================================= */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0b0a09;
-  --surface: #161412;
+  --bg-raised: #161412;
+  --bg-sunken: #070606;
   --fg: #f2eee6;
-  --muted: #8c867d;
+  --fg-muted: #a39c91;
+  --line: rgb(242 238 230 / 0.12);
   --accent: #7fb2ff;
+  --accent-ink: #0b0a09; /* text on accent */
+  --danger: #ff8d6b;
+  --glow: rgb(127 178 255 / 0.18);
+  --grain-opacity: 0.07;
+  --device-bezel: #1c1a18;
+  --device-edge: #3a3632;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2eee6;
+  --bg-raised: #e8e2d6;
+  --bg-sunken: #e2dbcd;
+  --fg: #14120f;
+  --fg-muted: #5e584f;
+  --line: rgb(20 18 15 / 0.14);
+  --accent: #2a58c6; /* ≥4.5:1 on every light surface */
+  --accent-ink: #f2eee6;
+  --danger: #b4361a;
+  --glow: rgb(47 95 208 / 0.14);
+  --grain-opacity: 0.05;
+  --device-bezel: #14120f;
+  --device-edge: #3a3632;
 }
 
 @theme inline {
   --color-bg: var(--bg);
-  --color-surface: var(--surface);
+  --color-raised: var(--bg-raised);
+  --color-sunken: var(--bg-sunken);
   --color-fg: var(--fg);
-  --color-muted: var(--muted);
+  --color-muted: var(--fg-muted);
+  --color-line: var(--line);
   --color-accent: var(--accent);
-  --font-sans: var(--font-manrope);
-  --font-display: var(--font-instrument);
+  --color-accent-ink: var(--accent-ink);
+  --color-danger: var(--danger);
+
+  /* --font-kufi is only defined on Arabic pages; elsewhere the stray Arabic
+     word (the language switch) uses a system font instead of downloading Kufi. */
+  --font-sans: var(--font-manrope), var(--font-kufi, ui-sans-serif), system-ui, sans-serif;
+  --font-display: var(--font-instrument), var(--font-kufi, ui-serif), Georgia, serif;
+  --font-arabic: var(--font-kufi, ui-sans-serif), system-ui, sans-serif;
 }
 
-body {
-  background: var(--bg);
-  color: var(--fg);
+@theme {
+  /* Type scale: 17px base, fluid display steps. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.55;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.55;
+  --text-xl: clamp(1.5rem, 1.2rem + 1.1vw, 1.875rem);
+  --text-xl--line-height: 1.3;
+  --text-2xl: clamp(2rem, 1.4rem + 2.6vw, 3.25rem);
+  --text-2xl--line-height: 1.05;
+  --text-3xl: clamp(2.75rem, 1.6rem + 5vw, 5.5rem);
+  --text-3xl--line-height: 0.98;
+  --text-display: clamp(4rem, 1rem + 13vw, 14rem);
+  --text-display--line-height: 0.86;
+  --text-display--letter-spacing: -0.03em;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+
+  --animate-marquee: marquee var(--marquee-duration, 40s) linear infinite;
+
+  @keyframes marquee {
+    to {
+      transform: translateX(calc(-50% * var(--marquee-dir, 1)));
+    }
+  }
+}
+
+/* =============================================================================
+   Base
+   ============================================================================= */
+@layer base {
+  :root {
+    --gutter: clamp(1rem, 0.5rem + 3vw, 3rem);
+    --section-space: clamp(6rem, 4rem + 9vw, 12rem);
+    --header-h: 4.5rem;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
+    transition:
+      background-color 0.5s var(--ease-out-expo),
+      color 0.5s var(--ease-out-expo);
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Lenis */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+  .lenis.lenis-stopped {
+    overflow: clip;
+  }
+
+  /* Hide the native cursor only when the custom one is active. */
+  html[data-cursor="on"],
+  html[data-cursor="on"] * {
+    cursor: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =============================================================================
+   Utilities
+   ============================================================================= */
+@utility container-page {
+  width: 100%;
+  max-width: 96rem;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+@utility section-space {
+  padding-block: var(--section-space);
+}
+
+/* Display type: the serif does the talking. */
+@utility type-display {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  letter-spacing: var(--text-display--letter-spacing);
+  font-weight: 400;
+}
+
+/* Link underline that draws in from the reading-start edge. */
+@utility link-underline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.5s var(--ease-out-expo);
+  &:where(:dir(rtl)) {
+    background-position: 100% 100%;
+  }
+  &:hover,
+  &:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+/* =============================================================================
+   Reveal system (CSS-driven so hero text paints without waiting for JS)
+   - .split-unit: one masked word/char; --i = index, --delay = base delay
+   - [data-reveal] containers pause their units until RevealObserver marks
+     them [data-inview]; html[data-preloader="on"] holds everything for the preloader
+   ============================================================================= */
+.split-mask {
+  display: inline-block;
+  overflow: clip;
+  overflow-clip-margin: 0.12em;
+  vertical-align: top;
+  padding-block-end: 0.06em;
+  margin-block-end: -0.06em;
+}
+
+.split-unit {
+  display: inline-block;
+  animation: split-rise 1.1s var(--ease-out-expo) both;
+  animation-delay: calc(var(--delay, 0ms) + var(--i, 0) * var(--stagger, 28ms));
+  will-change: transform;
+}
+
+@keyframes split-rise {
+  from {
+    transform: translateY(105%) rotate(4deg);
+  }
+}
+
+.fade-unit {
+  animation: fade-in 0.9s var(--ease-out-expo) both;
+  animation-delay: calc(var(--delay, 0ms) + var(--i, 0) * var(--stagger, 60ms));
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* Larger entrance for devices: rises and settles. Transform only, so the
+   hero image paints (and counts as LCP) even while paused under the preloader. */
+.rise-unit {
+  animation: rise-in 1.6s var(--ease-out-expo) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes rise-in {
+  from {
+    transform: translateY(14%) scale(0.94);
+  }
+}
+
+[data-reveal]:not([data-inview]) :is(.split-unit, .fade-unit, .rise-unit),
+html[data-preloader="on"] :is(.split-unit, .fade-unit, .rise-unit) {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-unit,
+  .rise-unit {
+    animation-name: fade-in;
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   Preloader (first visit per session). An inline script in the layout sets
+   html[data-preloader="on"] before first paint; the Preloader component moves
+   it to "leaving" (curtain lifts, page reveals start) and then removes it.
+   ============================================================================= */
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: none;
+  place-items: center;
+  background: var(--bg-sunken);
+}
+
+html[data-preloader] .preloader {
+  display: grid;
+}
+
+html[data-preloader="on"] {
+  overflow: hidden;
+}
+
+html[data-preloader="leaving"] .preloader {
+  animation: preloader-out 0.9s var(--ease-in-out-quart) forwards;
+}
+
+@keyframes preloader-out {
+  to {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+.preloader-outline {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: preloader-draw 1.1s var(--ease-in-out-quart) 0.1s forwards;
+}
+
+@keyframes preloader-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.preloader-mark {
+  animation: fade-in 0.6s var(--ease-out-expo) 0.8s both;
+}
+
+/* =============================================================================
+   Case studies take on the project's accent. In light mode the accent stays
+   the site blue (pastel project colors fail contrast on cream); only the glow
+   is tinted.
+   ============================================================================= */
+:root:not([data-theme="light"]) .project-theme {
+  --accent: var(--project-accent);
+  --glow: color-mix(in oklab, var(--project-accent) 20%, transparent);
+}
+
+[data-theme="light"] .project-theme {
+  --glow: color-mix(in oklab, var(--project-accent) 24%, transparent);
+}
+
+/* =============================================================================
+   Route transitions (React <ViewTransition>, View Transitions API)
+   - .page: the outgoing page lifts and blurs away, the new one settles in
+   - .device: a project's phone morphs between list, home and case study
+   - the header stays put as a fixed point of reference
+   ============================================================================= */
+::view-transition-old(.page) {
+  animation: vt-page-out 160ms ease-in both;
+}
+
+::view-transition-new(.page) {
+  animation: vt-page-in 420ms var(--ease-out-expo) 60ms both;
+}
+
+@keyframes vt-page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.75rem);
+  }
+}
+
+@keyframes vt-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+}
+
+::view-transition-group(.device) {
+  animation-duration: 520ms;
+  animation-timing-function: var(--ease-out-expo);
+  z-index: 10;
+}
+
+::view-transition-group(site-header) {
+  z-index: 20;
+}
+
+::view-transition-old(site-header),
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* =============================================================================
+   Arabic typography
+   Kufi glyphs are taller than the Latin serif and its letters join, so: no
+   negative tracking, roomier line heights and masks, and no slanted "italic"
+   (emphasis becomes the accent colour instead). Unlayered so it wins over
+   utilities like leading-[0.9] and tracking-[-0.02em].
+   ============================================================================= */
+:lang(ar) {
+  /* Kufi first: the Latin fonts' local fallbacks (Arial, Times) also contain
+     Arabic letters and would otherwise win. Kufi's unicode-range covers only
+     Arabic, so Latin words still fall through to Manrope / Instrument Serif. */
+  body {
+    font-family: var(--font-kufi), var(--font-manrope), system-ui, sans-serif;
+  }
+
+  :is(.type-display, .font-display) {
+    font-family: var(--font-kufi), var(--font-instrument), Georgia, serif;
+  }
+
+  :is(.type-display, .font-display, h1, h2, h3) {
+    letter-spacing: 0;
+    line-height: 1.25;
+    font-weight: 300;
+  }
+
+  [class*="tracking-"] {
+    letter-spacing: 0;
+  }
+
+  :is(em, .italic) {
+    font-style: normal;
+  }
+
+  :is(.type-display, .font-display, h1) em {
+    color: var(--accent);
+  }
+
+  /* Untranslated (English) content keeps its own direction and punctuation. */
+  :is(p, li, dd, dt, figcaption, blockquote):not([dir]) {
+    unicode-bidi: plaintext;
+  }
+
+  .split-mask {
+    overflow-clip-margin: 0.35em;
+    padding-block: 0.15em;
+    margin-block: -0.15em;
+  }
 }

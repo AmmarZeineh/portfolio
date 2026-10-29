@@ -63,6 +63,12 @@ export async function getFeaturedProjects(): Promise<ProjectSummary[]> {
   return projects.filter((p) => p.is_featured);
 }
 
+/** Columns and parsing for one project with tags and gallery (also used by the admin preview). */
+export const PROJECT_DETAIL_COLUMNS = DETAIL_COLUMNS;
+export function parseProjectDetail(row: Record<string, unknown>): Project {
+  return projectSchema.parse(normalize(row));
+}
+
 export async function getProject(slug: string): Promise<Project | null> {
   "use cache";
   cacheTag(CACHE_TAGS.projects, CACHE_TAGS.project(slug));
@@ -84,7 +90,7 @@ export async function getAdjacentProjects(slug: string) {
   const projects = await getProjects();
   const index = projects.findIndex((p) => p.slug === slug);
   if (index === -1 || projects.length < 2) return { previous: null, next: null };
-  const at = (i: number) => projects[(i + projects.length) % projects.length];
+  const at = (i: number) => projects[(i + projects.length) % projects.length] ?? null;
   return { previous: at(index - 1), next: at(index + 1) };
 }
 

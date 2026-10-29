@@ -21,6 +21,12 @@ export function publicEnv(): PublicEnv {
   return cachedPublicEnv;
 }
 
+export function isSupabaseConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}
+
 export function siteUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 }
@@ -30,6 +36,8 @@ const serverSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   CONTACT_NOTIFY_EMAIL: z.email().optional(),
   CONTACT_FROM_EMAIL: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
 });
 
 /** Server-only variables. Call from server code only. */
@@ -39,5 +47,7 @@ export function serverEnv() {
     RESEND_API_KEY: process.env.RESEND_API_KEY || undefined,
     CONTACT_NOTIFY_EMAIL: process.env.CONTACT_NOTIFY_EMAIL || undefined,
     CONTACT_FROM_EMAIL: process.env.CONTACT_FROM_EMAIL || undefined,
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || undefined,
+    TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || undefined,
   });
 }

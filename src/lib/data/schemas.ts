@@ -161,6 +161,8 @@ export const statSchema = z.object({
 export type Stat = z.infer<typeof statSchema>;
 
 export const siteSettingsSchema = z.object({
+  // Added in migration 0002; empty until then, and the UI falls back to the dictionary.
+  role: localizedText.default({ en: "" }),
   hero_headline: localizedText,
   hero_sub: localizedText,
   about: localizedText,
